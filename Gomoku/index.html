@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gomoku ai</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; 
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            color: #333;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            text-align: center;
+            max-width: 600px; 
+            width: 100%;
+            position: relative; 
+        }
+
+        h1 {
+            color: #d9534f;
+            margin-bottom: 20px;
+        }
+
+        #game-info {
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            height: auto;
+            position: relative;
+        }
+
+        #game-info p {
+            margin: 5px 0;
+        }
+
+        .black-stone-label {
+            color: #000;
+            font-weight: bold;
+        }
+
+        .white-stone-label {
+            color: #fff; 
+            text-shadow: 0 0 2px #000; 
+            font-weight: bold;
+        }
+        #game-status {
+            color: #d9534f;
+            font-weight: bold;
+            font-size: 1.2em;
+            
+            position: absolute;
+            top: 10px; 
+            left: 50%;
+            transform: translateX(-50%); 
+            
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 5px 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none; 
+            white-space: nowrap;
+        }
+
+        #game-status.visible {
+            opacity: 1;
+        }
+        /* ----------------------- */
+
+
+        #board-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+            border: 1px solid #ccc;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+        }
+
+        canvas#gobang-board {
+            background-color: #e0b48a; 
+            border: 1px solid #7a5f47;
+            cursor: pointer;
+            display: block; 
+        }
+
+        #controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+        
+        #controls button {
+            background-color: #d9534f;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #controls button:hover {
+            background-color: #c9302c;
+        }
+        
+        #undoButton {
+            background-color: #5bc0de;
+        }
+
+        #undoButton:hover:not(:disabled) {
+            background-color: #31b0d5;
+        }
+
+        #undoButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="container">
+        <h1>Gomoku ai</h1>
+        
+        <div id="game-info">
+            <p id="current-player-display">当前玩家: <span class="black-stone-label">黑棋 (您)</span></p>
+            <p id="undo-status">悔棋机会: 1 次</p>
+        </div>
+
+        <p id="game-status"></p>
+
+        <div id="board-container">
+            <canvas id="gobang-board"></canvas>
+        </div>
+        <div id="controls">
+            <button id="undoButton" onclick="undoMove()" disabled>悔棋 (1/局)</button>
+            <button onclick="restartGame()">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 游戏配置 ---
+        const BOARD_SIZE = 15;
+        const CELL_SIZE = 35;
+        const STONE_RADIUS = CELL_SIZE / 2 - 2;
+        const BLACK_STONE = 1;
+        const WHITE_STONE = 2;
+        const MAX_DEPTH = 3; 
+        const TOP_N_MOVES = 20; 
+        const HIGHLIGHT_COLOR = '#4CAF50'; 
+        
+        // 增强的评分常量
+        const SCORES_ENHANCED = {
+            FIVE: 10000000000,
+            LIVE_FOUR: 1000000, 
+            DOUBLE_LIVE_THREE: 500000, 
+            SLEEP_FOUR: 10000, 
+            LIVE_THREE: 5000,
+            SLEEP_THREE: 100,
+            LIVE_TWO: 50,
+            SLEEP_TWO: 1
+        };
+
+        // --- 游戏状态变量 ---
+        let board = [];
+        let currentPlayer;
+        let gameOver = false;
+        let ctx;
+        let boardCanvas;
+        let lastMove = null; 
+
+        // 悔棋状态变量
+        let history = []; 
+        let undoCount = 1; 
+
+        const gameStatusDisplay = document.getElementById('game-status');
+        const currentPlayerDisplay = document.getElementById('current-player-display');
+        const undoButton = document.getElementById('undoButton');
+        const undoStatus = document.getElementById('undo-status');
+
+
+        // --- 游戏初始化和基础绘图 ---
+
+        window.onload = function() {
+            boardCanvas = document.getElementById('gobang-board');
+            boardCanvas.width = CELL_SIZE * BOARD_SIZE;
+            boardCanvas.height = CELL_SIZE * BOARD_SIZE;
+            ctx = boardCanvas.getContext('2d');
+            boardCanvas.addEventListener('click', handlePlayerClick);
+            restartGame(true); // 首次加载强制启动
+        };
+
+        function restartGame(initial = false) {
+            // 棋盘和状态重置
+            board = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
+            gameOver = false;
+            lastMove = null; 
+            
+            // 悔棋状态重置
+            history = []; 
+            undoCount = 1; 
+            undoButton.disabled = true;
+            undoStatus.textContent = `悔棋机会: ${undoCount} 次`;
+
+            gameStatusDisplay.classList.remove('visible'); 
+            gameStatusDisplay.textContent = '';
+
+            // 1. 弹出选择先手/后手
+            const isPlayerFirst = window.confirm("您想执黑棋先手吗？\n\n（确定：您先手，执黑棋；取消：AI 先手，执白棋）");
+
+            if (isPlayerFirst) {
+                currentPlayer = BLACK_STONE;
+                updatePlayerDisplay();
+            } else {
+                currentPlayer = WHITE_STONE;
+                updatePlayerDisplay();
+                if (!initial) { // 仅在非首次加载时显示 AI 思考
+                    gameStatusDisplay.textContent = 'AI 正在思考...';
+                    gameStatusDisplay.classList.add('visible'); 
+                }
+                setTimeout(aiMove, 100); 
+            }
+            
+            drawBoard(); 
+        }
+
+        // --- 悔棋功能实现 ---
+        
+        // 保存当前棋盘状态到历史记录
+        function saveHistory() {
+            // 复制棋盘，防止引用问题
+            const currentBoard = board.map(row => [...row]); 
+            history.push({ board: currentBoard, lastMove: lastMove });
+            
+            // 确保悔棋按钮状态正确
+            if (undoCount > 0 && currentPlayer === BLACK_STONE && history.length > 0) {
+                undoButton.disabled = false;
+            }
+        }
+        
+        function undoMove() {
+            if (gameOver || undoCount === 0 || history.length < 1) return;
+
+            // 玩家只能撤销 AI 的上一步和自己的上一步（共 2 步）
+            // 如果历史记录不足 2 步，则退到开头
+            const stepsToUndo = Math.min(2, history.length);
+            
+            // 恢复到 stepsToUndo 之前的状态
+            for (let i = 0; i < stepsToUndo; i++) {
+                history.pop();
+            }
+
+            // 检查是否有历史记录可恢复
+            if (history.length > 0) {
+                const previousState = history[history.length - 1];
+                board = previousState.board.map(row => [...row]);
+                lastMove = previousState.lastMove;
+            } else {
+                // 如果回退到空棋盘，需要重新初始化棋盘状态
+                board = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
+                lastMove = null;
+            }
+
+            // 更新状态
+            undoCount--;
+            currentPlayer = BLACK_STONE; // 悔棋后始终轮到玩家
+            gameOver = false;
+            gameStatusDisplay.classList.remove('visible'); 
+            undoStatus.textContent = `悔棋机会: ${undoCount} 次`;
+            undoButton.disabled = true; // 悔棋后禁用，直到玩家再次落子
+            updatePlayerDisplay();
+            drawBoard();
+        }
+
+        // --- 绘图和落子逻辑 ---
+
+        function updatePlayerDisplay() {
+            if (currentPlayer === BLACK_STONE) {
+                currentPlayerDisplay.innerHTML = '当前玩家: <span class="black-stone-label">黑棋 (您)</span>';
+            } else {
+                currentPlayerDisplay.innerHTML = '当前玩家: <span class="white-stone-label">白棋 (AI)</span>';
+            }
+        }
+
+        function drawBoard() {
+            ctx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+            ctx.fillStyle = '#e0b48a';
+            ctx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(CELL_SIZE / 2, i * CELL_SIZE + CELL_SIZE / 2);
+                ctx.lineTo(boardCanvas.width - CELL_SIZE / 2, i * CELL_SIZE + CELL_SIZE / 2);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 2);
+                ctx.lineTo(i * CELL_SIZE + CELL_SIZE / 2, boardCanvas.height - CELL_SIZE / 2);
+                ctx.stroke();
+            }
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] !== 0) {
+                        drawStone(r, c, board[r][c]);
+                    }
+                }
+            }
+
+            if (lastMove) {
+                drawHighlight(lastMove.r, lastMove.c);
+            }
+        }
+
+        function drawStone(row, col, player) {
+            const x = col * CELL_SIZE + CELL_SIZE / 2;
+            const y = row * CELL_SIZE + CELL_SIZE / 2;
+
+            ctx.beginPath();
+            ctx.arc(x, y, STONE_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = player === BLACK_STONE ? '#000' : '#fff';
+            ctx.fill();
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+        
+        function drawHighlight(row, col) {
+            const x = col * CELL_SIZE + CELL_SIZE / 2;
+            const y = row * CELL_SIZE + CELL_SIZE / 2;
+            
+            ctx.beginPath();
+            ctx.arc(x, y, STONE_RADIUS + 3, 0, Math.PI * 2); 
+            ctx.strokeStyle = HIGHLIGHT_COLOR;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        function handlePlayerClick(event) {
+            if (gameOver || currentPlayer === WHITE_STONE) return;
+
+            const rect = boardCanvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const col = Math.floor(x / CELL_SIZE);
+            const row = Math.floor(y / CELL_SIZE);
+
+            if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE && board[row][col] === 0) {
+                saveHistory(); // 落子前保存当前状态
+                makeMove(row, col, currentPlayer);
+            }
+        }
+
+        function makeMove(row, col, player) {
+            board[row][col] = player;
+            lastMove = {r: row, c: col}; 
+            
+            drawBoard(); 
+
+            if (checkWin(row, col, player)) {
+                gameStatusDisplay.textContent = `${player === BLACK_STONE ? '黑棋 (您)' : '白棋 (AI)'} 获胜！`;
+                gameStatusDisplay.classList.add('visible'); 
+                gameOver = true;
+            } else if (checkDraw()) {
+                gameStatusDisplay.textContent = '平局！';
+                gameStatusDisplay.classList.add('visible'); 
+                gameOver = true;
+            } else {
+                currentPlayer = player === BLACK_STONE ? WHITE_STONE : BLACK_STONE;
+                updatePlayerDisplay();
+
+                if (currentPlayer === WHITE_STONE && !gameOver) {
+                    gameStatusDisplay.textContent = 'AI 正在思考...';
+                    gameStatusDisplay.classList.add('visible'); 
+                    setTimeout(aiMove, 50); 
+                } else if (!gameOver) {
+                    gameStatusDisplay.classList.remove('visible'); 
+                    // 轮到玩家时，如果还有悔棋机会，启用按钮
+                    if (undoCount > 0) {
+                        undoButton.disabled = false;
+                    }
+                }
+            }
+        }
+
+        // --- 胜负判断 (保持不变) ---
+        function checkWin(r, c, player) {
+            const directions = [
+                [0, 1], [1, 0], [1, 1], [1, -1]
+            ];
+
+            for (const [dr, dc] of directions) {
+                let count = 1;
+                for (let i = 1; i < 5; i++) {
+                    const nr = r + i * dr, nc = c + i * dc;
+                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) count++; else break;
+                }
+                for (let i = 1; i < 5; i++) {
+                    const nr = r - i * dr, nc = c - i * dc;
+                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) count++; else break;
+                }
+                if (count >= 5) return true;
+            }
+            return false;
+        }
+
+        function checkDraw() {
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] === 0) return false;
+                }
+            }
+            return true;
+        }
+
+
+        // ----------------------------------------------------
+        // --- 核心 AI 逻辑 (保持不变) ---
+        // ----------------------------------------------------
+
+        function aiMove() {
+            if (gameOver) return;
+            
+            saveHistory(); // AI 落子前保存当前状态
+
+            let bestScore = -Infinity;
+            let bestMove = null;
+
+            const candidateMoves = getPossibleMoves();
+            let ratedMoves = [];
+
+            // 1. 评估所有可能走法，并进行走法排序
+            for (const {r, c} of candidateMoves) {
+                
+                board[r][c] = WHITE_STONE;
+                if (checkWin(r, c, WHITE_STONE)) {
+                    board[r][c] = 0;
+                    return makeMove(r, c, WHITE_STONE); 
+                }
+                
+                const offenseScore = getBoardStateScore(WHITE_STONE);
+                
+                board[r][c] = BLACK_STONE;
+                if (checkWin(r, c, BLACK_STONE)) {
+                    board[r][c] = 0;
+                    ratedMoves.push({ r, c, score: SCORES_ENHANCED.LIVE_FOUR * 2 }); 
+                    continue; 
+                }
+                
+                const defenseScore = getBoardStateScore(BLACK_STONE); 
+                board[r][c] = 0; 
+                
+                const totalRating = offenseScore + defenseScore * 1.5; 
+                ratedMoves.push({ r, c, score: totalRating, r: r, c: c });
+            }
+
+            ratedMoves.sort((a, b) => b.score - a.score);
+            const movesForMinimax = ratedMoves.slice(0, TOP_N_MOVES); 
+
+            // 4. Minimax 深度搜索
+            for (const {r, c} of movesForMinimax) {
+                board[r][c] = WHITE_STONE;
+                const score = minimax(MAX_DEPTH - 1, -Infinity, Infinity, BLACK_STONE); 
+                board[r][c] = 0;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = { row: r, col: c };
+                }
+            }
+
+            if (bestMove) {
+                makeMove(bestMove.row, bestMove.col, WHITE_STONE);
+            }
+        }
+
+        function getPossibleMoves() {
+            const moves = new Set();
+            let stoneCount = 0;
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] !== 0) {
+                        stoneCount++;
+                        for (let dr = -2; dr <= 2; dr++) {
+                            for (let dc = -2; dc <= 2; dc++) {
+                                if (dr === 0 && dc === 0) continue;
+                                const nr = r + dr;
+                                const nc = c + dc;
+                                
+                                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === 0) {
+                                    moves.add(`${nr},${nc}`);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (stoneCount === 0) {
+                const center = Math.floor(BOARD_SIZE / 2);
+                moves.add(`${center},${center}`);
+            }
+
+            return Array.from(moves).map(m => {
+                const parts = m.split(',');
+                return { r: parseInt(parts[0]), c: parseInt(parts[1]) };
+            });
+        }
+
+
+        function minimax(depth, alpha, beta, player) {
+            if (depth === 0) {
+                const whiteScore = getBoardStateScore(WHITE_STONE);
+                const blackScore = getBoardStateScore(BLACK_STONE) * 1.5; 
+                return whiteScore - blackScore;
+            }
+            
+            const moves = getPossibleMoves();
+            
+            for(let r=0; r<BOARD_SIZE; r++){
+                for(let c=0; c<BOARD_SIZE; c++){
+                    if(board[r][c] !== 0 && checkWin(r, c, board[r][c])){
+                         return (board[r][c] === WHITE_STONE) ? SCORES_ENHANCED.FIVE : -SCORES_ENHANCED.FIVE;
+                    }
+                }
+            }
+
+
+            if (player === WHITE_STONE) { 
+                let maxEval = -Infinity;
+                for (const {r, c} of moves) {
+                    board[r][c] = WHITE_STONE;
+                    const evaluation = minimax(depth - 1, alpha, beta, BLACK_STONE);
+                    board[r][c] = 0;
+                    
+                    maxEval = Math.max(maxEval, evaluation);
+                    alpha = Math.max(alpha, evaluation);
+                    if (beta <= alpha) return maxEval; 
+                }
+                return maxEval;
+            } else { 
+                let minEval = Infinity;
+                for (const {r, c} of moves) {
+                    board[r][c] = BLACK_STONE;
+                    const evaluation = minimax(depth - 1, alpha, beta, WHITE_STONE);
+                    board[r][c] = 0;
+                    
+                    minEval = Math.min(minEval, evaluation);
+                    beta = Math.min(beta, evaluation);
+                    if (beta <= alpha) return minEval; 
+                }
+                return minEval;
+            }
+        }
+
+        
+        // --- 评估函数 (保持不变) ---
+
+        function getBoardStateScore(player) {
+            let totalScore = 0;
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] === player) {
+                        totalScore += calculateThreatsForPlayer(r, c, player);
+                    }
+                }
+            }
+            
+            const center = Math.floor(BOARD_SIZE / 2);
+            if (board[center][center] === WHITE_STONE) totalScore += 50; 
+
+            return totalScore;
+        }
+
+        function calculateThreatsForPlayer(r, c, player) {
+            let totalScore = 0;
+            let liveThreeCount = 0; 
+
+            const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+
+            for (const [dr, dc] of directions) {
+                let ownCount = 1;
+                let openEnds = 0;
+                
+                for(let i=1; i<5; i++) {
+                    const nr = r + i * dr, nc = c + i * dc;
+                    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+                    if (board[nr][nc] === player) ownCount++;
+                    else if (board[nr][nc] === 0) { openEnds++; break; }
+                    else break;
+                }
+                
+                for(let i=1; i<5; i++) {
+                    const nr = r - i * dr, nc = c - i * dc;
+                    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+                    if (board[nr][nc] === player) ownCount++;
+                    else if (board[nr][nc] === 0) { openEnds++; break; }
+                    else break;
+                }
+                
+                if (ownCount >= 5) totalScore += SCORES_ENHANCED.FIVE;
+                else if (ownCount === 4) {
+                    if (openEnds === 2) totalScore += SCORES_ENHANCED.LIVE_FOUR;
+                    else if (openEnds === 1) totalScore += SCORES_ENHANCED.SLEEP_FOUR;
+                }
+                else if (ownCount === 3) {
+                    if (openEnds === 2) {
+                        totalScore += SCORES_ENHANCED.LIVE_THREE;
+                        liveThreeCount++;
+                    }
+                    else if (openEnds === 1) totalScore += SCORES_ENHANCED.SLEEP_THREE;
+                }
+                else if (ownCount === 2 && openEnds === 2) totalScore += SCORES_ENHANCED.LIVE_TWO;
+                else if (ownCount === 2 && openEnds === 1) totalScore += SCORES_ENHANCED.SLEEP_TWO;
+            }
+            
+            if (liveThreeCount >= 2) {
+                totalScore += SCORES_ENHANCED.DOUBLE_LIVE_THREE;
+            }
+
+            return totalScore;
+        }
+
+    </script>
+</body>
+</html>
