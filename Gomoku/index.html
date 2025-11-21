@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gomoku ai</title>
+    
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -55,6 +56,7 @@
             text-shadow: 0 0 2px #000; 
             font-weight: bold;
         }
+
         #game-status {
             color: #d9534f;
             font-weight: bold;
@@ -77,11 +79,14 @@
             white-space: nowrap;
         }
 
+        #game-status.visible.win {
+            color: #4CAF50; 
+            box-shadow: 0 0 8px #4CAF50;
+        }
+
         #game-status.visible {
             opacity: 1;
         }
-        /* ----------------------- */
-
 
         #board-container {
             display: flex;
@@ -164,7 +169,7 @@
         const WHITE_STONE = 2;
         const MAX_DEPTH = 3; 
         const TOP_N_MOVES = 20; 
-        const HIGHLIGHT_COLOR = '#4CAF50'; 
+        const HIGHLIGHT_COLOR = '#4CAF50'; // 胜利和最新落子都使用绿色高亮
         
         // 增强的评分常量
         const SCORES_ENHANCED = {
@@ -185,6 +190,7 @@
         let ctx;
         let boardCanvas;
         let lastMove = null; 
+        let winningLine = []; // 新增：记录获胜的五连子坐标
 
         // 悔棋状态变量
         let history = []; 
@@ -204,7 +210,7 @@
             boardCanvas.height = CELL_SIZE * BOARD_SIZE;
             ctx = boardCanvas.getContext('2d');
             boardCanvas.addEventListener('click', handlePlayerClick);
-            restartGame(true); // 首次加载强制启动
+            restartGame(true); 
         };
 
         function restartGame(initial = false) {
@@ -212,6 +218,7 @@
             board = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
             gameOver = false;
             lastMove = null; 
+            winningLine = []; // 重置胜利连线
             
             // 悔棋状态重置
             history = []; 
@@ -219,7 +226,8 @@
             undoButton.disabled = true;
             undoStatus.textContent = `悔棋机会: ${undoCount} 次`;
 
-            gameStatusDisplay.classList.remove('visible'); 
+            // 清除并重置提示信息样式
+            gameStatusDisplay.classList.remove('visible', 'win'); 
             gameStatusDisplay.textContent = '';
 
             // 1. 弹出选择先手/后手
@@ -231,7 +239,7 @@
             } else {
                 currentPlayer = WHITE_STONE;
                 updatePlayerDisplay();
-                if (!initial) { // 仅在非首次加载时显示 AI 思考
+                if (!initial) { 
                     gameStatusDisplay.textContent = 'AI 正在思考...';
                     gameStatusDisplay.classList.add('visible'); 
                 }
@@ -243,13 +251,11 @@
 
         // --- 悔棋功能实现 ---
         
-        // 保存当前棋盘状态到历史记录
         function saveHistory() {
             // 复制棋盘，防止引用问题
             const currentBoard = board.map(row => [...row]); 
             history.push({ board: currentBoard, lastMove: lastMove });
             
-            // 确保悔棋按钮状态正确
             if (undoCount > 0 && currentPlayer === BLACK_STONE && history.length > 0) {
                 undoButton.disabled = false;
             }
@@ -259,21 +265,17 @@
             if (gameOver || undoCount === 0 || history.length < 1) return;
 
             // 玩家只能撤销 AI 的上一步和自己的上一步（共 2 步）
-            // 如果历史记录不足 2 步，则退到开头
             const stepsToUndo = Math.min(2, history.length);
             
-            // 恢复到 stepsToUndo 之前的状态
             for (let i = 0; i < stepsToUndo; i++) {
                 history.pop();
             }
 
-            // 检查是否有历史记录可恢复
             if (history.length > 0) {
                 const previousState = history[history.length - 1];
                 board = previousState.board.map(row => [...row]);
                 lastMove = previousState.lastMove;
             } else {
-                // 如果回退到空棋盘，需要重新初始化棋盘状态
                 board = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
                 lastMove = null;
             }
@@ -282,9 +284,11 @@
             undoCount--;
             currentPlayer = BLACK_STONE; // 悔棋后始终轮到玩家
             gameOver = false;
-            gameStatusDisplay.classList.remove('visible'); 
+            winningLine = []; // 悔棋后清除胜利连线
+            
+            gameStatusDisplay.classList.remove('visible', 'win'); 
             undoStatus.textContent = `悔棋机会: ${undoCount} 次`;
-            undoButton.disabled = true; // 悔棋后禁用，直到玩家再次落子
+            undoButton.disabled = true; 
             updatePlayerDisplay();
             drawBoard();
         }
@@ -299,6 +303,7 @@
             }
         }
 
+        // 绘制整个棋盘和所有棋子（包含高亮逻辑）
         function drawBoard() {
             ctx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
             ctx.fillStyle = '#e0b48a';
@@ -306,6 +311,7 @@
             ctx.strokeStyle = '#333';
             ctx.lineWidth = 1;
 
+            // 绘制棋盘线
             for (let i = 0; i < BOARD_SIZE; i++) {
                 ctx.beginPath();
                 ctx.moveTo(CELL_SIZE / 2, i * CELL_SIZE + CELL_SIZE / 2);
@@ -318,6 +324,7 @@
                 ctx.stroke();
             }
 
+            // 绘制所有棋子
             for (let r = 0; r < BOARD_SIZE; r++) {
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     if (board[r][c] !== 0) {
@@ -325,9 +332,15 @@
                     }
                 }
             }
-
-            if (lastMove) {
-                drawHighlight(lastMove.r, lastMove.c);
+            
+            // 绘制最新落子高亮 (如果游戏未结束且无五连)
+            if (lastMove && winningLine.length === 0) {
+                drawHighlight(lastMove.r, lastMove.c, true); 
+            }
+            
+            // 绘制胜利连线高亮 (如果存在五连)
+            if (winningLine.length > 0) {
+                winningLine.forEach(p => drawHighlight(p.r, p.c, false));
             }
         }
 
@@ -344,14 +357,17 @@
             ctx.stroke();
         }
         
-        function drawHighlight(row, col) {
+        // 绘制高亮标记
+        function drawHighlight(row, col, isLastMove) {
             const x = col * CELL_SIZE + CELL_SIZE / 2;
             const y = row * CELL_SIZE + CELL_SIZE / 2;
             
             ctx.beginPath();
             ctx.arc(x, y, STONE_RADIUS + 3, 0, Math.PI * 2); 
+            
+            // 最新落子使用较细线条，五连使用粗线条
             ctx.strokeStyle = HIGHLIGHT_COLOR;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = isLastMove ? 3 : 4; 
             ctx.stroke();
         }
 
@@ -366,7 +382,7 @@
             const row = Math.floor(y / CELL_SIZE);
 
             if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE && board[row][col] === 0) {
-                saveHistory(); // 落子前保存当前状态
+                saveHistory(); 
                 makeMove(row, col, currentPlayer);
             }
         }
@@ -375,11 +391,12 @@
             board[row][col] = player;
             lastMove = {r: row, c: col}; 
             
-            drawBoard(); 
+            const winLine = checkWin(row, col, player);
 
-            if (checkWin(row, col, player)) {
+            if (winLine) {
+                winningLine = winLine; // 记录获胜连线
                 gameStatusDisplay.textContent = `${player === BLACK_STONE ? '黑棋 (您)' : '白棋 (AI)'} 获胜！`;
-                gameStatusDisplay.classList.add('visible'); 
+                gameStatusDisplay.classList.add('visible', 'win'); // 添加 win 样式
                 gameOver = true;
             } else if (checkDraw()) {
                 gameStatusDisplay.textContent = '平局！';
@@ -392,36 +409,53 @@
                 if (currentPlayer === WHITE_STONE && !gameOver) {
                     gameStatusDisplay.textContent = 'AI 正在思考...';
                     gameStatusDisplay.classList.add('visible'); 
+                    gameStatusDisplay.classList.remove('win');
                     setTimeout(aiMove, 50); 
                 } else if (!gameOver) {
-                    gameStatusDisplay.classList.remove('visible'); 
-                    // 轮到玩家时，如果还有悔棋机会，启用按钮
+                    gameStatusDisplay.classList.remove('visible', 'win'); 
                     if (undoCount > 0) {
                         undoButton.disabled = false;
                     }
                 }
             }
+            
+            drawBoard(); // 保证高亮更新
         }
 
-        // --- 胜负判断 (保持不变) ---
+        // --- 胜负判断 (返回连线坐标) ---
         function checkWin(r, c, player) {
             const directions = [
                 [0, 1], [1, 0], [1, 1], [1, -1]
             ];
 
             for (const [dr, dc] of directions) {
+                let line = [{r, c}];
                 let count = 1;
+                
+                // 正向搜索
                 for (let i = 1; i < 5; i++) {
                     const nr = r + i * dr, nc = c + i * dc;
-                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) count++; else break;
+                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+                        count++;
+                        line.push({r: nr, c: nc});
+                    } else break;
                 }
+                
+                // 反向搜索
                 for (let i = 1; i < 5; i++) {
                     const nr = r - i * dr, nc = c - i * dc;
-                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) count++; else break;
+                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+                        count++;
+                        line.push({r: nr, c: nc});
+                    } else break;
                 }
-                if (count >= 5) return true;
+                
+                if (count >= 5) {
+                    // 找到了五连，返回连线中的前五个子
+                    return line.slice(0, 5);
+                }
             }
-            return false;
+            return null; // 没有获胜
         }
 
         function checkDraw() {
@@ -441,7 +475,7 @@
         function aiMove() {
             if (gameOver) return;
             
-            saveHistory(); // AI 落子前保存当前状态
+            saveHistory(); 
 
             let bestScore = -Infinity;
             let bestMove = null;
