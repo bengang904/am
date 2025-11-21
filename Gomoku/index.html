@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gomoku AI</title>
+    <title>Gomoku-AI</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -325,7 +325,7 @@
         }
 
         /**
-         * 处理玩家点击落子 (精确落子逻辑)
+         * 处理玩家点击落子 (精确落子逻辑 - 已修改阈值)
          */
         function handlePlayerClick(event) {
             if (gameOver || currentPlayer === WHITE_STONE) return;
@@ -335,8 +335,6 @@
             const clientY = event.clientY;
 
             // 1. 计算缩放比例，将客户端坐标 (CSS像素) 转换为 Canvas内部坐标 (物理像素)
-            // rect.width 是 Canvas 在屏幕上的实际显示尺寸 (CSS像素)
-            // boardCanvas.width 是 Canvas 内部绘制的物理像素尺寸
             const scaleX = boardCanvas.width / rect.width;
             const scaleY = boardCanvas.height / rect.height; 
             
@@ -362,9 +360,12 @@
                 // 计算点击点与最近网格点的欧氏距离平方
                 const distanceSq = Math.pow(correctedX - targetX, 2) + Math.pow(correctedY - targetY, 2);
                 
-                // 只有当距离小于棋子半径的 70% 且该位置为空时才落子
-                const thresholdSq = Math.pow(STONE_RADIUS * 0.7, 2); 
+                // *** 核心修改：将阈值扩大到 CELL_SIZE / 2 (即半个格子尺寸)，使点击判定范围大幅增加 ***
+                const halfCell = CELL_SIZE / 2;
+                const thresholdSq = Math.pow(halfCell, 2); 
+                // **********************************************************
 
+                // 只有当距离小于 CELL_SIZE/2 且该位置为空时才落子
                 if (distanceSq < thresholdSq && board[row][col] === 0) {
                     makeMove(row, col, currentPlayer);
                 }
@@ -452,6 +453,7 @@
         // ----------------------------------------------------
         // --- 核心 AI 逻辑 (Minimax + Alpha-Beta 剪枝) ---
         // ----------------------------------------------------
+        // AI 逻辑保持不变
 
         function aiMove() {
             if (gameOver) return;
@@ -637,7 +639,6 @@
             const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
             for (const [dr, dc] of directions) {
-                // 这个评分函数逻辑保留了您原有的实现方式，但为了性能，应该只计算一次线段
                 
                 let ownCount = 1;
                 let openEnds = 0;
