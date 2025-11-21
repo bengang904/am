@@ -3,161 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gomoku ai</title>
+    <title>Gomoku AI</title>
     <style>
         body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    min-height: 100vh;
-    margin: 0;
-    background-color: #f0f0f0;
-    color: #333;
-    padding: 10px;
-    box-sizing: border-box;
-}
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            color: #333;
+            padding: 10px;
+            box-sizing: border-box;
+        }
 
-.container {
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    padding: 20px;
-    text-align: center;
-    max-width: 600px;
-    width: 100%;
-    position: relative;
-    box-sizing: border-box;
-}
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+            position: relative;
+            box-sizing: border-box;
+        }
 
-h1 {
-    color: #d9534f;
-    margin-bottom: 15px;
-    font-size: 2rem;
-}
+        h1 {
+            color: #d9534f;
+            margin-bottom: 15px;
+            font-size: 2rem;
+        }
 
-#game-info {
-    margin-bottom: 15px;
-    font-size: 1.1em;
-    position: relative;
-}
+        #game-info {
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            position: relative;
+        }
 
-#game-info p {
-    margin: 6px 0;
-}
+        #game-info p {
+            margin: 6px 0;
+        }
 
-.black-stone-label {
-    color: #000;
-    font-weight: bold;
-}
+        .black-stone-label {
+            color: #000;
+            font-weight: bold;
+        }
 
-.white-stone-label {
-    color: #fff;
-    text-shadow: 0 0 2px #000;
-    font-weight: bold;
-}
+        .white-stone-label {
+            color: #fff;
+            text-shadow: 0 0 2px #000;
+            font-weight: bold;
+        }
 
-#game-status {
-    color: #d9534f;
-    font-weight: bold;
-    font-size: 1.2em;
+        #game-status {
+            color: #d9534f;
+            font-weight: bold;
+            font-size: 1.2em;
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 5px 12px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            white-space: nowrap;
+        }
 
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
+        #game-status.visible.win {
+            color: #4CAF50;
+            box-shadow: 0 0 8px #4CAF50;
+        }
 
-    background-color: rgba(255, 255, 255, 0.9);
-    padding: 5px 12px;
-    border-radius: 5px;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
-    z-index: 10;
+        #game-status.visible {
+            opacity: 1;
+        }
 
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
-    white-space: nowrap;
-}
+        #board-container {
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1; 
+            margin: 0 auto 25px auto;
+            border: 1px solid #ccc;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-#game-status.visible.win {
-    color: #4CAF50;
-    box-shadow: 0 0 8px #4CAF50;
-}
+        canvas#gobang-board {
+            width: 100%;   
+            height: 100%;
+            background-color: #e0b48a;
+            border: 1px solid #7a5f47;
+            cursor: pointer;
+            display: block;
+        }
 
-#game-status.visible {
-    opacity: 1;
-}
+        #controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
 
-#board-container {
-    width: 100%;
-    max-width: 500px;
-    aspect-ratio: 1; 
-    margin: 0 auto 25px auto;
-    border: 1px solid #ccc;
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+        #controls button {
+            background-color: #d9534f;
+            color: white;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
 
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
+        #controls button:hover {
+            background-color: #c9302c;
+        }
 
-canvas#gobang-board {
-    width: 100%;   
-    height: 100%;
-    background-color: #e0b48a;
-    border: 1px solid #7a5f47;
-    cursor: pointer;
-    display: block;
-}
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.7rem;
+            }
 
-#controls {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
-}
+            #controls button {
+                font-size: 1rem;
+                padding: 12px 20px;
+                width: 100%; 
+            }
 
-#controls button {
-    background-color: #d9534f;
-    color: white;
-    padding: 14px 24px;
-    border: none;
-    border-radius: 6px;
-    font-size: 1.1em;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
+            #game-info {
+                font-size: 1rem;
+            }
 
-#controls button:hover {
-    background-color: #c9302c;
-}
-
-@media (max-width: 600px) {
-    h1 {
-        font-size: 1.7rem;
-    }
-
-    #controls button {
-        font-size: 1rem;
-        padding: 12px 20px;
-        width: 100%; 
-    }
-
-    #game-info {
-        font-size: 1rem;
-    }
-
-    .container {
-        padding: 15px;
-    }
-}
-
+            .container {
+                padding: 15px;
+            }
+        }
     </style>
 </head>
 <body>
     
     <div class="container">
-        <h1>Gomoku ai</h1>
+        <h1>Gomoku AI</h1>
         
         <div id="game-info">
             <p id="current-player-display">当前玩家: <span class="black-stone-label">黑棋 (您)</span></p>
@@ -176,10 +171,10 @@ canvas#gobang-board {
     <script>
         // --- 游戏配置 ---
         const BOARD_SIZE = 15;
-        const CELL_SIZE = 35;
+        const CELL_SIZE = 35; // 棋盘在 Canvas 内部绘制时，每个单元格的尺寸
         const STONE_RADIUS = CELL_SIZE / 2 - 2;
-        const BLACK_STONE = 1;
-        const WHITE_STONE = 2;
+        const BLACK_STONE = 1; // 玩家
+        const WHITE_STONE = 2; // AI
         const MAX_DEPTH = 3; 
         const TOP_N_MOVES = 20; 
         const HIGHLIGHT_COLOR = '#4CAF50'; 
@@ -212,6 +207,7 @@ canvas#gobang-board {
 
         window.onload = function() {
             boardCanvas = document.getElementById('gobang-board');
+            // 设置 Canvas 内部的物理像素尺寸
             boardCanvas.width = CELL_SIZE * BOARD_SIZE;
             boardCanvas.height = CELL_SIZE * BOARD_SIZE;
             ctx = boardCanvas.getContext('2d');
@@ -226,11 +222,10 @@ canvas#gobang-board {
             lastMove = null; 
             winningLine = []; 
             
-            // 清除并重置提示信息样式
             gameStatusDisplay.classList.remove('visible', 'win'); 
             gameStatusDisplay.textContent = '';
 
-            // 1. 弹出选择先手/后手
+            // 选择先手/后手
             const isPlayerFirst = window.confirm("您想执黑棋先手吗？\n\n（确定：您先手，执黑棋；取消：AI 先手，执白棋）");
 
             if (isPlayerFirst) {
@@ -243,6 +238,7 @@ canvas#gobang-board {
                     gameStatusDisplay.textContent = 'AI 正在思考...';
                     gameStatusDisplay.classList.add('visible'); 
                 }
+                // AI 先手，延迟执行 aiMove，确保页面渲染完毕
                 setTimeout(aiMove, 100); 
             }
             
@@ -259,7 +255,6 @@ canvas#gobang-board {
             }
         }
 
-        // 绘制整个棋盘和所有棋子（包含高亮逻辑）
         function drawBoard() {
             ctx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
             ctx.fillStyle = '#e0b48a';
@@ -269,14 +264,18 @@ canvas#gobang-board {
 
             // 绘制棋盘线
             for (let i = 0; i < BOARD_SIZE; i++) {
+                const coord = i * CELL_SIZE + CELL_SIZE / 2;
+                
+                // 绘制横线
                 ctx.beginPath();
-                ctx.moveTo(CELL_SIZE / 2, i * CELL_SIZE + CELL_SIZE / 2);
-                ctx.lineTo(boardCanvas.width - CELL_SIZE / 2, i * CELL_SIZE + CELL_SIZE / 2);
+                ctx.moveTo(CELL_SIZE / 2, coord);
+                ctx.lineTo(boardCanvas.width - CELL_SIZE / 2, coord);
                 ctx.stroke();
 
+                // 绘制竖线
                 ctx.beginPath();
-                ctx.moveTo(i * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 2);
-                ctx.lineTo(i * CELL_SIZE + CELL_SIZE / 2, boardCanvas.height - CELL_SIZE / 2);
+                ctx.moveTo(coord, CELL_SIZE / 2);
+                ctx.lineTo(coord, boardCanvas.height - CELL_SIZE / 2);
                 ctx.stroke();
             }
 
@@ -289,12 +288,12 @@ canvas#gobang-board {
                 }
             }
             
-            // 绘制最新落子高亮 (如果游戏未结束且无五连)
+            // 绘制最新落子高亮
             if (lastMove && winningLine.length === 0) {
                 drawHighlight(lastMove.r, lastMove.c, true); 
             }
             
-            // 绘制胜利连线高亮 (如果存在五连)
+            // 绘制胜利连线高亮
             if (winningLine.length > 0) {
                 winningLine.forEach(p => drawHighlight(p.r, p.c, false));
             }
@@ -313,7 +312,6 @@ canvas#gobang-board {
             ctx.stroke();
         }
         
-        // 绘制高亮标记
         function drawHighlight(row, col, isLastMove) {
             const x = col * CELL_SIZE + CELL_SIZE / 2;
             const y = row * CELL_SIZE + CELL_SIZE / 2;
@@ -321,24 +319,55 @@ canvas#gobang-board {
             ctx.beginPath();
             ctx.arc(x, y, STONE_RADIUS + 3, 0, Math.PI * 2); 
             
-            // 最新落子使用较细线条，五连使用粗线条
             ctx.strokeStyle = HIGHLIGHT_COLOR;
             ctx.lineWidth = isLastMove ? 3 : 4; 
             ctx.stroke();
         }
 
+        /**
+         * 处理玩家点击落子 (精确落子逻辑)
+         */
         function handlePlayerClick(event) {
             if (gameOver || currentPlayer === WHITE_STONE) return;
 
             const rect = boardCanvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
+            const clientX = event.clientX;
+            const clientY = event.clientY;
 
-            const col = Math.floor(x / CELL_SIZE);
-            const row = Math.floor(y / CELL_SIZE);
+            // 1. 计算缩放比例，将客户端坐标 (CSS像素) 转换为 Canvas内部坐标 (物理像素)
+            // rect.width 是 Canvas 在屏幕上的实际显示尺寸 (CSS像素)
+            // boardCanvas.width 是 Canvas 内部绘制的物理像素尺寸
+            const scaleX = boardCanvas.width / rect.width;
+            const scaleY = boardCanvas.height / rect.height; 
+            
+            // 校正点击坐标
+            const correctedX = (clientX - rect.left) * scaleX;
+            const correctedY = (clientY - rect.top) * scaleY;
 
-            if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE && board[row][col] === 0) {
-                makeMove(row, col, currentPlayer);
+            // 2. 寻找最近的网格点位 (精确到交叉点)
+            
+            // 计算点击点相对于网格线中心的位置，并四舍五入到最近的整数索引
+            const colFloat = (correctedX - CELL_SIZE / 2) / CELL_SIZE;
+            const rowFloat = (correctedY - CELL_SIZE / 2) / CELL_SIZE;
+
+            const col = Math.round(colFloat);
+            const row = Math.round(rowFloat);
+
+            // 3. 检查落子是否在允许的范围内
+            if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) {
+                // 计算最近网格点的中心坐标 (物理像素)
+                const targetX = col * CELL_SIZE + CELL_SIZE / 2;
+                const targetY = row * CELL_SIZE + CELL_SIZE / 2;
+                
+                // 计算点击点与最近网格点的欧氏距离平方
+                const distanceSq = Math.pow(correctedX - targetX, 2) + Math.pow(correctedY - targetY, 2);
+                
+                // 只有当距离小于棋子半径的 70% 且该位置为空时才落子
+                const thresholdSq = Math.pow(STONE_RADIUS * 0.7, 2); 
+
+                if (distanceSq < thresholdSq && board[row][col] === 0) {
+                    makeMove(row, col, currentPlayer);
+                }
             }
         }
 
@@ -374,7 +403,8 @@ canvas#gobang-board {
             drawBoard(); 
         }
 
-        // --- 胜负判断 (返回连线坐标) ---
+        // --- 胜负平判断 ---
+
         function checkWin(r, c, player) {
             const directions = [
                 [0, 1], [1, 0], [1, 1], [1, -1]
@@ -403,11 +433,10 @@ canvas#gobang-board {
                 }
                 
                 if (count >= 5) {
-                    // 找到了五连，返回连线中的前五个子
                     return line.slice(0, 5);
                 }
             }
-            return null; // 没有获胜
+            return null;
         }
 
         function checkDraw() {
@@ -421,7 +450,7 @@ canvas#gobang-board {
 
 
         // ----------------------------------------------------
-        // --- 核心 AI 逻辑 (保持不变) ---
+        // --- 核心 AI 逻辑 (Minimax + Alpha-Beta 剪枝) ---
         // ----------------------------------------------------
 
         function aiMove() {
@@ -433,20 +462,22 @@ canvas#gobang-board {
             const candidateMoves = getPossibleMoves();
             let ratedMoves = [];
 
-            // 1. 评估所有可能走法，并进行走法排序
+            // 1. 初步评估所有可能走法，并进行排序 (Minimax 走法剪枝)
             for (const {r, c} of candidateMoves) {
                 
+                // 评估进攻：AI (白棋) 立即获胜
                 board[r][c] = WHITE_STONE;
                 if (checkWin(r, c, WHITE_STONE)) {
                     board[r][c] = 0;
                     return makeMove(r, c, WHITE_STONE); 
                 }
-                
                 const offenseScore = getBoardStateScore(WHITE_STONE);
                 
+                // 评估防守：玩家 (黑棋) 威胁
                 board[r][c] = BLACK_STONE;
                 if (checkWin(r, c, BLACK_STONE)) {
                     board[r][c] = 0;
+                    // 必须防守的走法给予最高优先级
                     ratedMoves.push({ r, c, score: SCORES_ENHANCED.LIVE_FOUR * 2 }); 
                     continue; 
                 }
@@ -454,16 +485,19 @@ canvas#gobang-board {
                 const defenseScore = getBoardStateScore(BLACK_STONE); 
                 board[r][c] = 0; 
                 
+                // 综合评分：进攻得分 + 防守得分 * 权重
                 const totalRating = offenseScore + defenseScore * 1.5; 
                 ratedMoves.push({ r, c, score: totalRating, r: r, c: c });
             }
 
+            // 排序并选取前 N 个最有希望的走法
             ratedMoves.sort((a, b) => b.score - a.score);
             const movesForMinimax = ratedMoves.slice(0, TOP_N_MOVES); 
 
-            // 4. Minimax 深度搜索
+            // 2. Minimax 深度搜索
             for (const {r, c} of movesForMinimax) {
                 board[r][c] = WHITE_STONE;
+                // 总是从 Max 玩家开始搜索
                 const score = minimax(MAX_DEPTH - 1, -Infinity, Infinity, BLACK_STONE); 
                 board[r][c] = 0;
 
@@ -478,6 +512,9 @@ canvas#gobang-board {
             }
         }
 
+        /**
+         * 获取周围 2 步距离内的所有空位作为候选走法
+         */
         function getPossibleMoves() {
             const moves = new Set();
             let stoneCount = 0;
@@ -486,6 +523,7 @@ canvas#gobang-board {
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     if (board[r][c] !== 0) {
                         stoneCount++;
+                        // 检查周围 5x5 区域 (距离 <= 2)
                         for (let dr = -2; dr <= 2; dr++) {
                             for (let dc = -2; dc <= 2; dc++) {
                                 if (dr === 0 && dc === 0) continue;
@@ -501,6 +539,7 @@ canvas#gobang-board {
                 }
             }
             
+            // 如果棋盘为空，从中心开始
             if (stoneCount === 0) {
                 const center = Math.floor(BOARD_SIZE / 2);
                 moves.add(`${center},${center}`);
@@ -513,25 +552,31 @@ canvas#gobang-board {
         }
 
 
+        /**
+         * Minimax 搜索算法 (递归)
+         */
         function minimax(depth, alpha, beta, player) {
+            // 终止条件：达到最大深度或游戏结束
             if (depth === 0) {
                 const whiteScore = getBoardStateScore(WHITE_STONE);
-                const blackScore = getBoardStateScore(BLACK_STONE) * 1.5; 
+                const blackScore = getBoardStateScore(BLACK_STONE) * 1.5; // 玩家威胁的权重更高
                 return whiteScore - blackScore;
             }
             
             const moves = getPossibleMoves();
             
+            // 立即检查是否有五连胜 
             for(let r=0; r<BOARD_SIZE; r++){
                 for(let c=0; c<BOARD_SIZE; c++){
                     if(board[r][c] !== 0 && checkWin(r, c, board[r][c])){
+                         // 胜利的分数是无限大/小
                          return (board[r][c] === WHITE_STONE) ? SCORES_ENHANCED.FIVE : -SCORES_ENHANCED.FIVE;
                     }
                 }
             }
 
 
-            if (player === WHITE_STONE) { 
+            if (player === WHITE_STONE) { // Max 玩家 (AI)
                 let maxEval = -Infinity;
                 for (const {r, c} of moves) {
                     board[r][c] = WHITE_STONE;
@@ -540,10 +585,10 @@ canvas#gobang-board {
                     
                     maxEval = Math.max(maxEval, evaluation);
                     alpha = Math.max(alpha, evaluation);
-                    if (beta <= alpha) return maxEval; 
+                    if (beta <= alpha) return maxEval; // Alpha-Beta 剪枝
                 }
                 return maxEval;
-            } else { 
+            } else { // Min 玩家 (Player)
                 let minEval = Infinity;
                 for (const {r, c} of moves) {
                     board[r][c] = BLACK_STONE;
@@ -552,18 +597,20 @@ canvas#gobang-board {
                     
                     minEval = Math.min(minEval, evaluation);
                     beta = Math.min(beta, evaluation);
-                    if (beta <= alpha) return minEval; 
+                    if (beta <= alpha) return minEval; // Alpha-Beta 剪枝
                 }
                 return minEval;
             }
         }
 
         
-        // --- 评估函数 (保持不变) ---
-
+        /**
+         * 评估棋盘状态得分
+         */
         function getBoardStateScore(player) {
             let totalScore = 0;
 
+            // 遍历所有棋子，并计算其对当前局面的威胁和贡献
             for (let r = 0; r < BOARD_SIZE; r++) {
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     if (board[r][c] === player) {
@@ -572,22 +619,30 @@ canvas#gobang-board {
                 }
             }
             
+            // 奖励占据中心
             const center = Math.floor(BOARD_SIZE / 2);
             if (board[center][center] === WHITE_STONE) totalScore += 50; 
 
             return totalScore;
         }
 
+        /**
+         * 计算指定玩家在棋盘上形成的活/死棋型威胁
+         */
         function calculateThreatsForPlayer(r, c, player) {
             let totalScore = 0;
             let liveThreeCount = 0; 
 
+            // 检查四个方向：水平、垂直、两个对角线
             const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
             for (const [dr, dc] of directions) {
+                // 这个评分函数逻辑保留了您原有的实现方式，但为了性能，应该只计算一次线段
+                
                 let ownCount = 1;
                 let openEnds = 0;
                 
+                // 正向搜索
                 for(let i=1; i<5; i++) {
                     const nr = r + i * dr, nc = c + i * dc;
                     if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
@@ -596,6 +651,7 @@ canvas#gobang-board {
                     else break;
                 }
                 
+                // 反向搜索
                 for(let i=1; i<5; i++) {
                     const nr = r - i * dr, nc = c - i * dc;
                     if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
@@ -604,6 +660,7 @@ canvas#gobang-board {
                     else break;
                 }
                 
+                // 评分逻辑 (原逻辑)
                 if (ownCount >= 5) totalScore += SCORES_ENHANCED.FIVE;
                 else if (ownCount === 4) {
                     if (openEnds === 2) totalScore += SCORES_ENHANCED.LIVE_FOUR;
