@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gomoku-AI</title>
+    <title>Gomoku AI</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -98,7 +98,7 @@
         }
 
         canvas#gobang-board {
-            width: 100%;   
+            width: 100%;  
             height: 100%;
             background-color: #e0b48a;
             border: 1px solid #7a5f47;
@@ -325,9 +325,10 @@
         }
 
         /**
-         * 处理玩家点击落子 (精确落子逻辑 - 已修改阈值)
+         * 处理玩家点击落子 (精确落子逻辑)
          */
         function handlePlayerClick(event) {
+            // 如果游戏结束或轮到 AI 思考，直接返回
             if (gameOver || currentPlayer === WHITE_STONE) return;
 
             const rect = boardCanvas.getBoundingClientRect();
@@ -343,8 +344,6 @@
             const correctedY = (clientY - rect.top) * scaleY;
 
             // 2. 寻找最近的网格点位 (精确到交叉点)
-            
-            // 计算点击点相对于网格线中心的位置，并四舍五入到最近的整数索引
             const colFloat = (correctedX - CELL_SIZE / 2) / CELL_SIZE;
             const rowFloat = (correctedY - CELL_SIZE / 2) / CELL_SIZE;
 
@@ -360,22 +359,27 @@
                 // 计算点击点与最近网格点的欧氏距离平方
                 const distanceSq = Math.pow(correctedX - targetX, 2) + Math.pow(correctedY - targetY, 2);
                 
-                // *** 核心修改：将阈值扩大到 CELL_SIZE / 2 (即半个格子尺寸)，使点击判定范围大幅增加 ***
+                // 阈值：CELL_SIZE / 2
                 const halfCell = CELL_SIZE / 2;
                 const thresholdSq = Math.pow(halfCell, 2); 
-                // **********************************************************
 
-                // 只有当距离小于 CELL_SIZE/2 且该位置为空时才落子
+                // 只有当距离小于阈值且该位置为空时才落子
                 if (distanceSq < thresholdSq && board[row][col] === 0) {
                     makeMove(row, col, currentPlayer);
                 }
             }
         }
 
+        /**
+         * 核心落子函数：处理落子，检查胜负，切换玩家。
+         */
         function makeMove(row, col, player) {
             board[row][col] = player;
             lastMove = {r: row, c: col}; 
             
+            // 1. 立即绘制棋盘，确保玩家落子没有延迟感
+            drawBoard(); 
+
             const winLine = checkWin(row, col, player);
 
             if (winLine) {
@@ -383,28 +387,32 @@
                 gameStatusDisplay.textContent = `${player === BLACK_STONE ? '黑棋 (您)' : '白棋 (AI)'} 获胜！`;
                 gameStatusDisplay.classList.add('visible', 'win'); 
                 gameOver = true;
+                // 重新绘制，确保胜利高亮线立即显示
+                drawBoard(); 
             } else if (checkDraw()) {
                 gameStatusDisplay.textContent = '平局！';
                 gameStatusDisplay.classList.add('visible'); 
                 gameOver = true;
             } else {
+                // 2. 切换玩家
                 currentPlayer = player === BLACK_STONE ? WHITE_STONE : BLACK_STONE;
                 updatePlayerDisplay();
 
                 if (currentPlayer === WHITE_STONE && !gameOver) {
+                    // 3. 显示 AI 思考状态
                     gameStatusDisplay.textContent = 'AI 正在思考...';
                     gameStatusDisplay.classList.add('visible'); 
                     gameStatusDisplay.classList.remove('win');
+                    
+                    // 4. 使用 setTimeout 延迟调用 AI 逻辑
                     setTimeout(aiMove, 50); 
                 } else if (!gameOver) {
                     gameStatusDisplay.classList.remove('visible', 'win'); 
                 }
             }
-            
-            drawBoard(); 
         }
 
-        // --- 胜负平判断 ---
+        // --- 胜负平判断 (已修正，确保返回 5 个连续的坐标) ---
 
         function checkWin(r, c, player) {
             const directions = [
@@ -412,33 +420,43 @@
             ];
 
             for (const [dr, dc] of directions) {
-                let line = [{r, c}];
-                let count = 1;
                 
-                // 正向搜索
-                for (let i = 1; i < 5; i++) {
-                    const nr = r + i * dr, nc = c + i * dc;
-                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
-                        count++;
-                        line.push({r: nr, c: nc});
-                    } else break;
-                }
-                
-                // 反向搜索
+                // 1. 找到连线的起始点 (逆着方向找到第一个非己方或出界的位置)
+                let startR = r, startC = c;
                 for (let i = 1; i < 5; i++) {
                     const nr = r - i * dr, nc = c - i * dc;
+                    // 检查是否在界内且是己方棋子
+                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+                        startR = nr;
+                        startC = nc;
+                    } else {
+                        break;
+                    }
+                }
+
+                // 2. 从起始点开始，沿着方向数棋子，并收集坐标
+                let count = 1;
+                const tempLine = [{r: startR, c: startC}];
+
+                for (let i = 1; i < 5; i++) {
+                    const nr = startR + i * dr, nc = startC + i * dc;
                     if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
                         count++;
-                        line.push({r: nr, c: nc});
-                    } else break;
+                        tempLine.push({r: nr, c: nc});
+                    } else {
+                        break;
+                    }
                 }
                 
+                // 3. 检查是否获胜
                 if (count >= 5) {
-                    return line.slice(0, 5);
+                    // 确保只返回 5 个连续的坐标
+                    return tempLine.slice(0, 5);
                 }
             }
             return null;
         }
+
 
         function checkDraw() {
             for (let r = 0; r < BOARD_SIZE; r++) {
@@ -453,7 +471,6 @@
         // ----------------------------------------------------
         // --- 核心 AI 逻辑 (Minimax + Alpha-Beta 剪枝) ---
         // ----------------------------------------------------
-        // AI 逻辑保持不变
 
         function aiMove() {
             if (gameOver) return;
@@ -510,6 +527,7 @@
             }
 
             if (bestMove) {
+                // 3. AI 找到最佳走法并落子
                 makeMove(bestMove.row, bestMove.col, WHITE_STONE);
             }
         }
@@ -571,8 +589,8 @@
             for(let r=0; r<BOARD_SIZE; r++){
                 for(let c=0; c<BOARD_SIZE; c++){
                     if(board[r][c] !== 0 && checkWin(r, c, board[r][c])){
-                         // 胜利的分数是无限大/小
-                         return (board[r][c] === WHITE_STONE) ? SCORES_ENHANCED.FIVE : -SCORES_ENHANCED.FIVE;
+                            // 胜利的分数是无限大/小
+                            return (board[r][c] === WHITE_STONE) ? SCORES_ENHANCED.FIVE : -SCORES_ENHANCED.FIVE;
                     }
                 }
             }
